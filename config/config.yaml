@@ -1,0 +1,8 @@
+---
+project: vula
+ai_provider: gemini
+default_key: "AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhR"
+default_model: gemini-2.0-flash
+task:
+  gemini_key: AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhR
+  gemini_model: gemini-2.0-flash
