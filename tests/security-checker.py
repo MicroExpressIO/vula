@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.INFO)
 
 from datetime import datetime
 
+from byteplussdkarkruntime import Ark
+
 
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 par_dir = os.path.dirname(cur_dir)
@@ -88,16 +90,20 @@ def llm_check_against_kb(description: str, kb: List[Dict], method: str = "openai
                 temperature=0.2,
             )
             return [response.choices[0].message['content']]
-        elif method == "deepseek":
-            response = openai.ChatCompletion.create(
-                model="gpt-4-0613",
+        elif method == "bd_deepseek":
+            client = Ark(
+                api_key=config.bd_key,
+                base_url="https://ark-ap-southeast.byteintl.net/api/v3",
+            )
+            response = client.chat.completions.create(
+                model=config.bd_model,
                 messages=[
                     {"role": "system", "content": "You are a security compliance checker."},
                     {"role": "user", "content": input_text}
                 ],
-                temperature=0.2,
-            )
-            return [response.choices[0].message['content']]
+                stream=False
+                )
+            return response.choices[0].message.content
         elif method == "gemini":
             '''
             model = genai.GenerativeModel("gemini-pro")
@@ -105,9 +111,9 @@ def llm_check_against_kb(description: str, kb: List[Dict], method: str = "openai
             return [response.text]
             '''
 
-            client = genai.Client(api_key=config.key)
+            client = genai.Client(api_key=config.gemini_key)
             response = client.models.generate_content(
-                model=config.model,
+                model=config.gemini_model,
                 config=types.GenerateContentConfig(
                     system_instruction="You are a security compliance checker."
                 ),
@@ -124,7 +130,7 @@ def external_search_solution(issue: str, method: str = "openai") -> str:
         return call_openai_solution(issue)
     elif method == "gemini":
         return call_gemini_solution(issue)
-    elif method == "deepseek":
+    elif method == "bd_deepseek":
         return call_deepseek_solution(issue)
     else:
         return f"[Manual Lookup] {issue} => Please consult OWASP guidelines."
@@ -145,10 +151,10 @@ def call_openai_solution(issue: str) -> str:
 
 def call_deepseek_solution(issue: str) -> str:
     try:
-        client = openai.OpenAI(api_key=config.deepseek_api_key, base_url="https://api.deepseek.com/v1")
+        client = openai.OpenAI(api_key=config.bd_key, base_url="https://api.deepseek.com/v1")
         user_content = f"Give security best practices or mitigation steps for: {issue}"
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model=config.bd_model,
             messages=[
                 {"role": "system", "content": "You are a security advisor."},
                 {"role": "user", "content": user_content}
@@ -171,10 +177,10 @@ def call_gemini_solution(issue: str) -> str:
 
 def call_gemini_solution(issue: str) -> str:
     try:
-        client = genai.Client(api_key=config.key)
+        client = genai.Client(api_key=config.gemini_key)
         user_content = f"Give security best practices or mitigation steps for: {issue}"
         response = client.models.generate_content(
-            model=config.model,
+            model=config.gemini_model,
             contents=user_content
         )
         

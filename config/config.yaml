@@ -1,8 +1,39 @@
 ---
 project: vula
-ai_provider: gemini
-default_key: "AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhR"
-default_model: gemini-2.0-flash
-task:
-  gemini_key: AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhR
+data_path: "./data/all.IECS.no.java.mysql.glibc.0701.csv"
+cve_path: "./data/cve_list.csv"
+target_priority: "Medium"
+ai_provider: skylark_pro
+#ai_provider: seed_16
+#ai_provider: gemini
+default_key: "AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhRY"
+llm:
+  gemini_key: AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhRY
   gemini_model: gemini-2.0-flash
+  #bd_key: 8bc4e2e5-793a-4083-a2c8-60616888d153
+  bd_model: ep-20250619054106-v9wr8
+  bd_key: 7385c60a-2ba0-45c4-8bc6-06d655719ad3
+  #bd_model: ep-20250624013439-l6tv9
+  gpt_key: 
+  gpt_model: gpt-4.1
+  # bytedance LLM configuration
+  doubao_url: 'https://ark-ap-southeast.byteintl.net/api/v3'
+  codewise_model: codewise_32b_staging
+  codewise_key: empty
+  codewise_url: 'https://gpt.byteintl.net/faas-api-test/v1/'
+  doubao_key: 8bc4e2e5-793a-4083-a2c8-60616888d153
+  seed_16_lowtoken: ep-20250809102651-kx6bw
+  seed_16: "ep-20250812055927-brkm2"
+  skylark_pro: "ep-20250813015742-w9nxq"
+  doubao_url: 'https://ark-ap-southeast.byteintl.net/api/v3'
+lark:
+  VulaBotID: "cli_a8faaf83d234100e"
+  VulaBotSecret: "yuEEbIk8bDDGyZEoB9abUT2Wd4hUFjbD"
+  pagetoken_doubao: "DNulwry7wipTwck4n17cwj2TnJh"
+  page_doubao_high:  "GSehwhpNzi24vqkIEyQcJm91n1e"
+  pagetoken_cve_high: "RO3nwCJSHirHebkRid9cIl8onlb"
+  page_doubao_medium: "K1eGwMJRziZkMDkO1q9cEGW0nne"
+  pagetoken_cve_medium: "MGlMw0acOi1zIFkT4FQcmFnPncf"
+  pagetoken_low: "PrbFwpBB6iB34OkbqEYc3mDQnkd"
+  pagetoken_cve_low: "HTJHwyxpaicnotkpyy9cFuaCnze"
+  pagetoken_codewise: "N3J6wdHt4i3CEFk5DPfcRSwgntQ"

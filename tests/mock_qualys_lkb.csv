@@ -1,0 +1,4 @@
+Priority,QID,Description,Host,Results
+3,6000649,[60772]Debian Security Update for less (DLA 3823-1),10.98.43.42, Package Installed Version Required Version less 487-0.1+b1 487-0.1+deb10u1
+3,6000517,[60824]Debian Security Update for nss (DLA 3757-1),10.98.43.42,Package Installed Version Required Version libnss3 2:3.42.1-1+deb10u7 2:3.42.1-1+deb10u8
+2,6000619,[60775]Debian Security Update for python-idna (DLA 3811-1),10.98.43.42,Package Installed Version Required Version python-idna 2.6-1 2.6-1+deb10u1 python3-idna 2.6-1 2.6-1+deb10u1

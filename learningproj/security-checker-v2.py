@@ -1,0 +1,345 @@
+# security_agent_checker.py
+
+import json
+from typing import List, Dict
+import os
+import sys
+import openai  # For OpenAI integration
+#import google.generativeai as genai  # For Gemini integration
+from google import genai
+from google.genai import types
+import logging
+logging.basicConfig(level=logging.INFO)
+
+from datetime import datetime
+
+from byteplussdkarkruntime import Ark
+
+cur_dir = os.path.dirname(os.path.abspath(__file__))
+par_dir = os.path.dirname(cur_dir)
+sys.path.append(par_dir)
+from config.config import config
+from agent.prompts import learningprompt 
+#import prompts.learningprompt as learningprompt
+
+
+
+
+# Setup logging
+log_file = f"security_review_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# 1. Build local security programming standard knowledge base
+security_kb = [
+    {"id": "SEC001", "rule": "All user passwords must be hashed using bcrypt or Argon2."},
+    {"id": "SEC002", "rule": "Do not store plaintext credentials in code or config files."},
+    {"id": "SEC003", "rule": "Use HTTPS for all data transmissions."},
+    {"id": "SEC004", "rule": "Input validation must be performed on all external inputs."},
+    {"id": "SEC005", "rule": "Use parameterized queries to prevent SQL injection."}
+]
+
+vulnerability_kb = [
+    {"Priority": "3", "QID": "6000649", "Description": "[60772]Debian Security Update for less (DLA 3823-1)", "Host": "10.98.43.42", "Results": "Package Installed Version Required Version less 487-0.1+b1 487-0.1+deb10u1" },
+    {"Priority":"3", "QID":"6000517", "Description": "[60824]Debian Security Update for nss (DLA 3757-1)", "Host": "10.98.43.42", "Results": "Package Installed Version Required Version libnss3 2:3.42.1-1+deb10u7 2:3.42.1-1+deb10u8"},
+    {"Priority":"2", "QID": "6000619", "Description": "[60775]Debian Security Update for python-idna (DLA 3811-1)", "Host": "10.98.43.42", "Results": "Package Installed Version Required Version python-idna 2.6-1 2.6-1+deb10u1 python3-idna 2.6-1 2.6-1+deb10u1"}
+]
+
+# 2. Mock a user design document with use cases
+mock_user_doc = [
+    {
+        "title": "User login system",
+        "description": "Passwords are stored in plaintext for quick access.",
+        "has_security_section": True
+    },
+    {
+        "title": "Payment gateway",
+        "description": "The system uses HTTPS and input validation.",
+        "has_security_section": True
+    },
+    {
+        "title": "Email service integration",
+        "description": "Service connects using HTTP.",
+        "has_security_section": False
+    },
+    {
+        "title": "User registration",
+        "description": "Password is hashed using bcrypt and input is validated.",
+        "has_security_section": True
+    },
+    {
+        "title": "Admin report system",
+        "description": "SQL queries are built using user input directly.",
+        "has_security_section": False
+    }
+]
+
+# 3. Use LLM to evaluate design doc description against knowledge base
+#openai.api_key = os.getenv("OPENAI_API_KEY")
+#genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+def llm_check_against_kb(description: str, kb: List[Dict], method: str = "openai") -> List[str]:
+    rules = "\n".join([f"{item['id']}: {item['rule']}" for item in kb])
+    prompt = f"""
+    Here is a list of security rules:
+    {rules}
+
+    Below is a system design description. List any rules that are violated:
+    """
+    input_text = prompt + f"\n\nDescription:\n{description}"
+    logging.info(input_text)
+
+    try:
+        if method == "openai":
+            response = openai.ChatCompletion.create(
+                model="gpt-4-0613",
+                messages=[
+                    {"role": "system", "content": "You are a security compliance checker."},
+                    {"role": "user", "content": input_text}
+                ],
+                temperature=0.2,
+            )
+            return [response.choices[0].message['content']]
+        elif method == "bd_deepseek":
+            client = Ark(
+                api_key=config.bd_key,
+                base_url="https://ark-ap-southeast.byteintl.net/api/v3",
+            )
+            response = client.chat.completions.create(
+                model=config.bd_model,
+                messages=[
+                    {"role": "system", "content": "You are a security compliance checker."},
+                    {"role": "user", "content": input_text}
+                ],
+                stream=False
+                )
+            return response.choices[0].message.content
+        elif method == "gemini":
+            '''
+            model = genai.GenerativeModel("gemini-pro")
+            response = model.generate_content(input_text)
+            return [response.text]
+            '''
+
+            client = genai.Client(api_key=config.gemini_key)
+            response = client.models.generate_content(
+                model=config.gemini_model,
+                config=types.GenerateContentConfig(
+                    system_instruction="You are a security compliance checker."
+                ),
+                contents=input_text
+            )
+            return response.text
+
+    except Exception as e:
+        return [f"[LLM error]: {str(e)}"]
+
+def llm_check_against_kb_vul(description: str, kb: List[Dict], method: str = "openai") -> List[str]:
+    rules = "\n".join([f"{item['id']}: {item['rule']}" for item in kb])
+    prompt = f"""
+    Here is a list of security rules:
+    {rules}
+
+    Below is a system design description. List any rules that are violated:
+    """
+    input_text = prompt + f"\n\nDescription:\n{description}"
+    logging.info(input_text)
+
+    try:
+        if method == "openai":
+            response = openai.ChatCompletion.create(
+                model="gpt-4-0613",
+                messages=[
+                    {"role": "system", "content": "You are a security compliance checker."},
+                    {"role": "user", "content": input_text}
+                ],
+                temperature=0.2,
+            )
+            return [response.choices[0].message['content']]
+        elif method == "bd_deepseek":
+            client = Ark(
+                api_key=config.bd_key,
+                base_url="https://ark-ap-southeast.byteintl.net/api/v3",
+            )
+            response = client.chat.completions.create(
+                model=config.bd_model,
+                messages=[
+                    {"role": "system", "content": "You are a security compliance checker."},
+                    {"role": "user", "content": input_text}
+                ],
+                stream=False
+                )
+            return response.choices[0].message.content
+        elif method == "gemini":
+            '''
+            model = genai.GenerativeModel("gemini-pro")
+            response = model.generate_content(input_text)
+            return [response.text]
+            '''
+
+            client = genai.Client(api_key=config.gemini_key)
+            response = client.models.generate_content(
+                model=config.gemini_model,
+                config=types.GenerateContentConfig(
+                    system_instruction="You are a security compliance checker."
+                ),
+                contents=input_text
+            )
+            return response.text
+
+    except Exception as e:
+        return [f"[LLM error]: {str(e)}"]
+
+# 4. External search (OpenAI or Gemini)
+def external_search_solution(issue: str, method: str = "openai") -> str:
+    if method == "openai":
+        return call_openai_solution(issue)
+    elif method == "gemini":
+        return call_gemini_solution(issue)
+    elif method == "bd_deepseek":
+        return call_deepseek_solution(issue)
+    else:
+        return f"[Manual Lookup] {issue} => Please consult OWASP guidelines."
+
+def call_openai_solution(issue: str) -> str:
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4-0613",
+            messages=[
+                {"role": "system", "content": "You are a security advisor."},
+                {"role": "user", "content": f"Give security best practices or mitigation steps for: {issue}"}
+            ],
+            temperature=0.3,
+        )
+        return response.choices[0].message['content']
+    except Exception as e:
+        return f"[OpenAI Error] {str(e)}"
+
+def call_deepseek_solution(issue: str) -> str:
+    try:
+        client = Ark(
+                api_key=config.bd_key,
+                base_url="https://ark-ap-southeast.byteintl.net/api/v3",
+            )
+        pmpt_user = f"Focus on Debian 10 and Debain 12, analyze the impact, describe solution and give security best practices or mitigation steps \
+            give out the remedaition scripts that can be run on both OS - including depednecy check and verifciation for \
+            security vulnerability: {issue}"
+        response = client.chat.completions.create(
+            model=config.bd_model,
+            messages=[
+                #{"role": "system", "content": "You are a security compliance checker."},
+                {"role": "system", "content": learningprompt.proj_role_security},
+                
+                {"role": "user", "content": pmpt_user}
+            ],
+            stream=False
+            )
+        return response.choices[0].message.content
+        '''
+        client = openai.OpenAI(api_key=config.bd_key, base_url="https://api.deepseek.com/v1")
+        user_content = f"Give security best practices or mitigation steps for security vulnerability: {issue}"
+        response = client.chat.completions.create(
+            model=config.bd_model,
+            messages=[
+                {"role": "system", "content": "You are a security advisor."},
+                {"role": "user", "content": user_content}
+            ],
+            stream=False
+        )
+        return response.choices[0].message.content
+        '''
+    except Exception as e:
+        return f"[Error fetching solution from DeepSeek]: {str(e)}"
+
+"""
+def call_gemini_solution(issue: str) -> str:
+    try:
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(f"Give security best practices or mitigation steps for: {issue}")
+        return response.text
+    except Exception as e:
+        return f"[Gemini Error] {str(e)}"
+"""
+
+def call_gemini_solution(issue: str) -> str:
+    try:
+        client = genai.Client(api_key=config.gemini_key)
+        user_content = f"Give security best practices or mitigation steps for: {issue}"
+        response = client.models.generate_content(
+            model=config.gemini_model,
+            contents=user_content
+        )
+        
+        return response.text
+    except Exception as e:
+        return f"[Error fetching solution from Gemini]: {str(e)}"
+
+# 5. AI Agent Review with Logging and Report
+
+def ai_agent_review(design_docs: List[Dict], kb: List[Dict], method: str = "openai"):
+    results = []
+    for doc in design_docs:
+        title = doc["title"]
+        print(f"\n[Reviewing: {title}]")
+        violations = llm_check_against_kb(doc["description"], kb, method)
+        
+        #debug
+        logging.info(f"[before looping - Violations: {violations}")
+
+        if violations:
+            print("Violations Detected:")
+            for v in violations.splitlines():
+                if v.startswith("*"):
+                    print("-", v)
+                    logging.info(f"{title} - VIOLATION: {v}")
+                    solution = external_search_solution(v, method)
+                    print("Suggestion:", solution)
+                    logging.info(f"{title} - SUGGESTION: {solution}")
+                    #break
+        else:
+            print("No Issues Detected.")
+            logging.info(f"{title} - COMPLIANT")
+
+        results.append({"title": title, "violations": violations})
+        break
+
+    with open("security_review_report.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print("\n[Review Completed] Report saved to security_review_report.json and log file.")
+
+def ai_agent_review_vul(kb: List[Dict], method: str = "gemini"):
+    results = []
+    for k in kb:
+        priority = k["Priority"]
+        qid = k["QID"]
+        desc = k["Description"]
+        host= k["Host"]
+        results = k["Results"]
+
+        print(f"\n[Reviewing: {desc}]")        
+        #logging.info(f"[before looping - Violations: {violations}")
+        pmpt_sol = f""" Qualys issue: {desc}"""
+        #logging.info(f"{title} - VIOLATION: {v}")
+        solution = external_search_solution(pmpt_sol, method)
+        print("Suggestion:", pmpt_sol)
+        logging.info(f"{desc} - SUGGESTION: {solution}")
+
+        
+        #results.append({"title": desc, "solution": solution})
+        break
+
+    with open("security_review_report.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print("\n[Review Completed] Report saved to security_review_report.json and log file.")    
+
+# 6. Entry Point
+
+def main():
+    print("[AI Security Agent] Starting security review of user designs...\n")
+    method = config.ai_provider
+    #method = os.getenv("AI_PROVIDER", "openai")  # 'openai' or 'gemini'
+    #ai_agent_review(mock_user_doc, security_kb, method)
+
+    ai_agent_review_vul(vulnerability_kb, method)
+
+if __name__ == "__main__":
+    main()

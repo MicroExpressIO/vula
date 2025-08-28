@@ -3,8 +3,12 @@ proj_role=f"""
 As an AI expert with rich experiences on LLM, Agentic AI, AI Agent, RAG, Finetune, MCP(Model Context Protocol). 
 """
 
-proj_role_Agent=f"""
+proj_role_agent=f"""
 You are a AI agent expert.
+"""
+
+proj_role_security=f"""
+You are a security expert. Your mission is to solve the real world security problems. 
 """
 
 proj_format=f"""
