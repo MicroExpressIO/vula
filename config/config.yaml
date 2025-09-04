@@ -2,7 +2,7 @@
 project: vula
 data_path: "./data/all.IECS.no.java.mysql.glibc.0701.csv"
 cve_path: "./data/cve_list.csv"
-target_priority: "Medium"
+target_priority: "High"
 ai_provider: skylark_pro
 #ai_provider: seed_16
 #ai_provider: gemini
@@ -30,7 +30,7 @@ lark:
   VulaBotID: "cli_a8faaf83d234100e"
   VulaBotSecret: "yuEEbIk8bDDGyZEoB9abUT2Wd4hUFjbD"
   pagetoken_doubao: "DNulwry7wipTwck4n17cwj2TnJh"
-  page_doubao_high:  "GSehwhpNzi24vqkIEyQcJm91n1e"
+  page_doubao_high:  "KYIPwNPAUihynRkYFezcJfMJnzp"
   pagetoken_cve_high: "RO3nwCJSHirHebkRid9cIl8onlb"
   page_doubao_medium: "K1eGwMJRziZkMDkO1q9cEGW0nne"
   pagetoken_cve_medium: "MGlMw0acOi1zIFkT4FQcmFnPncf"

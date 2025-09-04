@@ -293,134 +293,129 @@ class VulaSelector():
         for i, row in dframe_target.iterrows():
             self.gen_csv_by_qid(dframe, row['QID'])
 
+class VulaOperator:
+    def __init__(self):
+        self.vulaConfig = {}
 
-##############################################
-# Parameters: 
-# LocalCopy: bool - indicate if we want to write the analysis into local file
-# priority: str   - priority of vulnerabilities to be handled (data filter)  
-# dframe: pd.DataFrame    - dataFrame of full CSV input
-# model: str = "gemini"   - AI model to be used for analyzing
-#
-def handle_vulnerability(LocalCopy: bool, 
-                         VulType: str,
-                         priority: str, 
-                         dframe: pd.DataFrame, 
-                         model: str = "gemini"):
+        '''{   
+            "priority": priority, 
+            "vultype" : VulType,
+            "model" : method,
+            "inputfile" : file_path,
+            "writelocal" : writeLocal,
+            "parentpage" : target_parent_page,
+            "vul" : []
+        }'''
+    
+    def runtime_config(self, VulType:str, priority: str,  method: str = "gemini"):
+        target_prioity = priority
+        ### retrieve target records 
+        if VulType == "CVE" or VulType == "cve": 
+            file_path = config.cve_path
+        elif VulType == "QID" or VulType == "qid":
+            file_path = config.data_path
+        else: 
+            file_path = " "
 
-    ### init the VulaAnalyzeModel()
-    vaa = VulaAnalyzeAgent(model)
-    fops = FOPS()
+        if priority == "High":
+            target_parent_page = config.page_doubao_high
+            #if cve.lower() in VulType.lower():
+            if "cve" in VulType.lower():
+                target_parent_page = config.pagetoken_cve_high
+        elif priority == "Medium":
+            target_parent_page = config.page_doubao_medium # target parent page 
+            if "cve" in VulType.lower():
+                target_parent_page = config.pagetoken_cve_medium
+        elif priority == "Low":
+            target_parent_page = config.pagetoken_low
+            if "cve" in VulType.lower():
+                target_parent_page = config.pagetoken_cve_low
 
-    if priority == "High":
-        target_parent_page = config.page_doubao_high
-    elif priority == "Medium":
-        target_parent_page = config.page_doubao_medium # target parent page 
-        if VulType == "CVE" or VulType == "cve":
-            target_parent_page = config.pagetoken_cve_medium
-    elif priority == "Low":
-        target_parent_page = config.pagetoken_low
-        if VulType == "CVE" or VulType == "cve":
-            target_parent_page = config.pagetoken_cve_low
+        writeLocal = False
 
-    ## build the existed wiki page list 
-    sum_pagelist = []
-    page_token = None
-    has_more = True
-    larkapp = larkAPP.LarkAPP(config.bot_id, config.bot_secret, target_parent_page)
+        model = method
 
-    # "has_more" means if there's more sibling pages to be handled; 
-    # "page_list" not None also indicate there's more siblings
-    while has_more:
-        has_more, page_token, page_list = larkapp.listNodeOfWikiSpace(target_parent_page, page_token)
-        if page_list is None:     # for first round this is necessary
-            break
-        sum_pagelist.extend(page_list)
-
-    #logging.info(f"has_more: {has_more}")
-    #logging.info(f"page_token: {page_token}")
-    #logging.info(f"\n#########\n len: {len(sum_pagelist)}\nsum_pagelist\n\n\n\n\n\n{sum_pagelist}")
-    #return
-    for i, row in dframe.iterrows():
-        if i >= 1:
-            print(f"i: {i}\n")
+        self.vulaConfig = {
+            "priority": priority,
+            "vultype" : VulType,
+            "model" : method,
+            "inputfile" : file_path,
+            "writelocal" : writeLocal,
+            "parentpage" : target_parent_page,
+            "vul" : []
+        }
+        print(self.vulaConfig)
+        #return
+    
+        #if VulType != 'CVE' or VulType != 'QID' or VulType != 'qid' or VulType != 'cve' :
+        if VulType not in {'CVE', 'QID', 'qid', 'cve'}:
+            self.vulaConfig["vul"].append(VulType)
             return
-        print(f"\n#########\ncurrent task: i: {i}\n########\n")
-        #continue
-    
-        print(f"\n--- Vulnerability {i + 1} ---")
         
-        if VulType == "QID" or VulType == "qid":
-            desc = re.sub(r"\[.*?\]", "", row['Alarm Name'])
-            file_title=f"{row['QID']}-{desc}"
-            file_path=f"./output/{file_title}.md"
-        elif VulType == "CVE" or VulType == "cve":
-            desc=row['CVE']
-            file_title=row['CVE']
-            file_path=f"./output/{file_title}.md"
+        ## retrieve vul list
+        vulaSelector = VulaSelector(target_prioity, file_path)
+        df = vulaSelector.read_csv_file(file_path)
+        if df is None or df.empty:
+            print("No data to process.")
+            return
+        target_df = vulaSelector.select_vul_by_priority(VulType, dfset=df, 
+                                            priority_col='Risk Rating')
+        if target_df is None or target_df.empty:
+            print("No vulnerabilities found with the specified priority.")
+            return
+        
+        for i, row in target_df.iterrows():
+            if VulType == "QID" or VulType == "qid":
+                desc = re.sub(r"\[.*?\]", "", row['Alarm Name'])
+                filePrefix=f"{row['QID']}-{desc}"
+            elif VulType == "CVE" or VulType == "cve":
+                filePrefix=row['CVE']
+            filePath=f"./output/{filePrefix}.md"
 
-        ### Upload to Lark wiki if not existing
-        if file_title not in sum_pagelist:
-            logging.info(f"Investigating: {file_title}")
-            ## get solution
+            ## add into vulaConfig
+            self.vulaConfig["filepath"]=filePath
+            self.vulaConfig["vul"].append(filePrefix)
 
-            #print(f"Alarm Name: {row'['Alarm Name']}")
-            pmpt_sol = f""" Security issue: {desc}"""
-            solution = vaa.external_search_solution(pmpt_sol)
+        #print(f"vulaConfig: {self.vulaConfig}")
 
-            if LocalCopy: # Write solution to local output
-                fops.write_if_not_exists(file_path, solution)
+    def handle_vuls(self):
+        vaa = VulaAnalyzeAgent(self.vulaConfig["model"])
+        fops = FOPS()
 
-            ## create wikipage
-            larkapp.createWikiPage(file_title, solution)
-        else:
-            logging.warning(f"wiki existed already, PASS")
+        ## build the existed wiki page list 
+        sum_pagelist = []
+        page_token = None
+        has_more = True
+        larkapp = larkAPP.LarkAPP(config.bot_id, config.bot_secret, self.vulaConfig["parentpage"])
 
-    logging.debug("leaving handle_vulnerability()")   
+        # "has_more" means if there's more sibling pages to be handled; 
+        # "page_list" not None also indicate there's more siblings
+        while has_more:
+            has_more, page_token, page_list = larkapp.listNodeOfWikiSpace(self.vulaConfig["parentpage"], page_token)
+            if page_list is None:     # for first round this is necessary
+                break
+            sum_pagelist.extend(page_list)
 
-def ai_triage_vulnerability(VulType:str, priority: str,  method: str = "gemini") -> str:
-#def ai_triage_vulnerability(file_path: str) -> str:
-    target_prioity = priority
+        for vul in self.vulaConfig["vul"]:
+            ### Upload to Lark wiki if not existing
+            if vul not in sum_pagelist:
+                logging.info(f"Investigating: {vul}")
+                ## get solution
 
-    ### retrieve target records 
-    if VulType == "CVE" or VulType == "cve": 
-        file_path = config.cve_path
-    elif VulType == "QID" or VulType == "qid":
-        file_path = config.data_path
-    
-    vulaSelector = VulaSelector(target_prioity, file_path)
-    df = vulaSelector.read_csv_file(file_path)
-    if df is None or df.empty:
-        print("No data to process.")
-        return
-    target_df = vulaSelector.select_vul_by_priority(VulType, dfset=df, 
-                                        priority_col='Risk Rating')
-    if target_df is None or target_df.empty:
-        print("No vulnerabilities found with the specified priority.")
-        return
-    
-    ### risk analyzing for the target data records
-    writeLocal = False
-    #model = config.ai_provider
-    model = method
-    
-    handle_vulnerability(writeLocal, VulType, target_prioity, target_df, model)
+                #print(f"Alarm Name: {row'['Alarm Name']}")
+                pmpt_sol = f""" Security issue: {vul}"""
+                solution = vaa.external_search_solution(pmpt_sol)
 
-    #gen_solution_by_qid(target_df, 6000403, method)
-    ### test code
-    #desc=f"Debian Security Update for openssh (DLA 3694-1)"
-    desc=(f"CVE-2025-34027")
-    #gen_solution_by_desc(desc, "gemini")
-    #gen_solution_by_desc(desc, "codewise")
-    #gen_solution_by_desc(desc, "bd_deepseek")
-    #gen_solution_by_desc(desc, "openai")
-    #gen_solution_by_desc(desc, "seed16")
-    #gen_solution_by_desc(desc, "skylarkpro")
+                if self.vulaConfig["writelocal"]: # Write solution to local output
+                    fops.write_if_not_exists(self.vulaConfig["filepath"], solution)
 
+                ## create wikipage
+                larkapp.createWikiPage(vul, solution)
+            else:
+                logging.warning(f"Wiki existed already, PASS")
+            
 
-    #retrieve_host_info(df, target_df)
-
-    # Assuming 'Alarm Name' is the column containing the vulnerability description
-
+#class VulaManager:
 def getDlaList(file_path: str, priority: str) -> list:
     target_prioity = priority
 
@@ -454,15 +449,13 @@ def getDlaList(file_path: str, priority: str) -> list:
     return ret
 
 
-
 def main():
-    #vulaagent = VulaAnalyzeAgent(config.ai_provider)
-    # Example call to the function to process a maximum of 5 lines.
-    # csv_parser_v2(file_path=example_file, max_lines=5)
-    #ai_triage_vulnerability(example_file, "doubao")
-    #ai_triage_vulnerability(config.data_path, "Low", "codewise")
+    #ai_triage_vulnerability("CVE", config.target_priority, config.ai_provider)
+    #runtime_config("CVE-2025-27363", config.target_priority, config.ai_provider)
+    insVulaOperator = VulaOperator()
     
-    ai_triage_vulnerability("CVE", config.target_priority, config.ai_provider)
+    insVulaOperator.runtime_config("qid", config.target_priority, config.ai_provider)
+    insVulaOperator.handle_vuls()
 
     ### gen cve list from given csv file
     '''

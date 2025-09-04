@@ -1,0 +1,17 @@
+    {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Compile Lisp with SBCL",
+                "type": "shell",
+                /*"command": "sbcl --eval '(compile-file \"${file}\")' --quit", */
+                /*"command": "sbcl --script \"${file}\" ", */
+                "command": "clisp \"${file}\" ",
+                "group": {
+                    "kind": "build",
+                    "isDefault": true
+                },
+                "problemMatcher": []
+            }
+        ]
+    }
