@@ -34,7 +34,94 @@ logging.basicConfig(level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
         )
 
-class VulaAnalyzeAgent:
+###############################
+### input data processing
+###############################
+class VulaSelector():
+    def __init__(self, priority: str, dataPath: str):
+        self.priority = priority
+        self.dataPath = dataPath
+
+    #def select_vulnerabilities_by_priority(file_path: str, priority_col='Risk Rating', min_priority='High') ->pd.DataFrame:
+    #def select_vulnerabilities_by_priority(self, dfset: pd.DataFrame, priority_col='Risk Rating', min_priority='High') -> pd.DataFrame:
+    def select_vul_by_priority(self, v_type:str, dfset: pd.DataFrame, priority_col='Risk Rating') -> pd.DataFrame:
+        # filter the specified priority column 
+        priority_df = dfset[dfset[priority_col] == self.priority]      
+        if priority_df.empty:
+            print(f"No vulnerabilities found with priority '{self.priority}'.")
+            return
+
+        print(f"Found {len(priority_df)} vulnerabilities with priority '{self.priority}'.")
+        if v_type == "QID" or v_type == "qid":
+            # group by QID for the filtered DataFrame
+            qid_df = priority_df.groupby('QID').first().reset_index()
+            print(f"Grouped vulnerabilities by QID, total unique QIDs: {len(qid_df)}")
+            return qid_df
+        elif v_type == "CVE" or v_type == "cve":
+            # group by QID for the filtered DataFrame
+            cve_df = priority_df.groupby('CVE').first().reset_index()
+            print(f"Grouped vulnerabilities by CVE, total unique CVEs: {len(cve_df)}")
+            return cve_df
+    
+    def read_csv_file(self, file_path: str) -> pd.DataFrame:
+        try:
+            # Read the CSV file into a DataFrame
+            df = pd.read_csv(file_path)
+
+            ### debugging print statements
+            rowcount = len(df)
+            print(f"Total rows in CSV: {rowcount}")
+            print(f"Columns in CSV: {df.columns.tolist()}")
+            #print(f"First few rows:\n{df.head()}")
+
+            # Check if the DataFrame is empty
+            if df.empty:
+                print("CSV file is empty or only contains headers.")
+                return
+            
+        except FileNotFoundError:
+            print(f"Error: The file '{file_path}' was not found.")
+            return
+        except pd.errors.EmptyDataError:
+            print(f"Error: The file '{file_path}' is empty and could not be parsed.")
+            return
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            return
+
+        return df
+
+    def gen_csv_by_qid(self, dframe: pd.DataFrame, qid: str):
+        df_qid = dframe[dframe['QID'] == qid]
+        if df_qid.empty:
+            print(f"No records found for QID: {qid}")
+            return 
+        else:
+            print(f"\nFound {len(df_qid)} records for QID: {qid}")
+            print(f"\nQID,Priority,Alarm Name,IP,Source,OS,Solution")
+            df_csv = df_qid[['QID', 'Risk Rating', 'Alarm Name', 'IP', 'Source', 'OS']]
+            df_csv['Solution'] = None
+            fd_csv = f"./output/{qid}-{df_csv.iloc[0, 2]}.csv"
+            if os.path.exists(fd_csv):
+                print(f"File {fd_csv} already exists. Skipping write operation.")
+                return
+            df_csv.to_csv(fd_csv, index=False)
+
+            """
+            for i, row in df_qid.iterrows():
+                print(f"{row['QID']},{row['Risk Rating']},{row['Alarm Name']},{row['IP']},{row['Source']},{row['OS']}, ")
+            return 
+            """
+
+    def retrieve_host_info(self, dframe: pd.DataFrame, dframe_target: pd.DataFrame) -> pd.DataFrame:
+        for i, row in dframe_target.iterrows():
+            self.gen_csv_by_qid(dframe, row['QID'])
+
+##############################
+### LLM adapter
+##############################
+#class VulaAnalyzeAgent:
+class LlmAdapter:
     def __init__(self, myModel: str):
         self.model = myModel
 
@@ -154,8 +241,8 @@ class VulaAnalyzeAgent:
         except Exception as e:
             return f"[Error fetching solution from Gemini]: {str(e)}"
 
-    #def external_search_solution(self, issue: str, model: str ) -> str:
-    def external_search_solution(self, issue: str) -> str:
+    #def external_search_solution(self, issue: str) -> str:
+    def get_solution(self, issue: str) -> str:
         #system_prompt = learningprompt.proj_role_security
         system_prompt = psecurity_checker.p_role_vulnerability
         user_prompt = f"""For the security problem defeind in triple bracktiks below, focus on Debian 10 and Debain 12, finish the following:
@@ -170,21 +257,32 @@ class VulaAnalyzeAgent:
             security problem: '''{issue}''' 
             
             """
-        model = self.model
-        if model == "openai":
+        
+        if self.model == "openai":
             return self.call_openai_solution(system_prompt, user_prompt)
-        elif model == "gemini":
+        elif self.model == "gemini":
             return self.call_gemini_solution(system_prompt, user_prompt)
-        elif model == "bd_deepseek":
+        elif self.model == "bd_deepseek":
             return self.call_deepseek_solution(system_prompt, user_prompt)
-        elif model == "codewise":
+        elif self.model == "codewise":
             return self.call_codewise_solution(system_prompt, user_prompt)
-        elif model == "seed16":
+        elif self.model == "seed16":
             return self.call_seed16_solution(system_prompt, user_prompt)
-        elif model == "skylark_pro":
+        elif self.model == "skylark_pro":
             return self.call_skylark_solution(system_prompt, user_prompt)
         else:
             return f"[Manual Lookup] {issue} => Please consult OWASP guidelines."
+
+##############################
+### Agent / LLM calling
+##############################
+class VulaAnalyzeAgent:
+    def __init__(self, myModel: str):
+        self.model = myModel
+       
+    def analyze_vul(self, issue: str) -> str:
+        llmAdapter = LlmAdapter(self.model)
+        return llmAdapter.get_solution(issue)
 
     def gen_solution_by_qid(self, dframe: pd.DataFrame, qid: str) -> str:
         df_qid = dframe[dframe['QID'] == qid]
@@ -213,86 +311,11 @@ class VulaAnalyzeAgent:
         fops.write_if_not_exists(f"./output/{desc}.md", solution)
 
 
-class VulaSelector():
-    def __init__(self, priority: str, dataPath: str):
-        self.priority = priority
-        self.dataPath = dataPath
 
-    #def select_vulnerabilities_by_priority(file_path: str, priority_col='Risk Rating', min_priority='High') ->pd.DataFrame:
-    #def select_vulnerabilities_by_priority(self, dfset: pd.DataFrame, priority_col='Risk Rating', min_priority='High') -> pd.DataFrame:
-    def select_vul_by_priority(self, v_type:str, dfset: pd.DataFrame, priority_col='Risk Rating') -> pd.DataFrame:
-        # filter the specified priority column 
-        priority_df = dfset[dfset[priority_col] == self.priority]      
-        if priority_df.empty:
-            print(f"No vulnerabilities found with priority '{self.priority}'.")
-            return
-
-        print(f"Found {len(priority_df)} vulnerabilities with priority '{self.priority}'.")
-        if v_type == "QID" or v_type == "qid":
-            # group by QID for the filtered DataFrame
-            qid_df = priority_df.groupby('QID').first().reset_index()
-            print(f"Grouped vulnerabilities by QID, total unique QIDs: {len(qid_df)}")
-            return qid_df
-        elif v_type == "CVE" or v_type == "cve":
-            # group by QID for the filtered DataFrame
-            cve_df = priority_df.groupby('CVE').first().reset_index()
-            print(f"Grouped vulnerabilities by CVE, total unique CVEs: {len(cve_df)}")
-            return cve_df
-    
-    def read_csv_file(self, file_path: str) -> pd.DataFrame:
-        try:
-            # Read the CSV file into a DataFrame
-            df = pd.read_csv(file_path)
-
-            ### debugging print statements
-            rowcount = len(df)
-            print(f"Total rows in CSV: {rowcount}")
-            print(f"Columns in CSV: {df.columns.tolist()}")
-            #print(f"First few rows:\n{df.head()}")
-
-            # Check if the DataFrame is empty
-            if df.empty:
-                print("CSV file is empty or only contains headers.")
-                return
-            
-        except FileNotFoundError:
-            print(f"Error: The file '{file_path}' was not found.")
-            return
-        except pd.errors.EmptyDataError:
-            print(f"Error: The file '{file_path}' is empty and could not be parsed.")
-            return
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            return
-
-        return df
-
-    def gen_csv_by_qid(self, dframe: pd.DataFrame, qid: str):
-        df_qid = dframe[dframe['QID'] == qid]
-        if df_qid.empty:
-            print(f"No records found for QID: {qid}")
-            return 
-        else:
-            print(f"\nFound {len(df_qid)} records for QID: {qid}")
-            print(f"\nQID,Priority,Alarm Name,IP,Source,OS,Solution")
-            df_csv = df_qid[['QID', 'Risk Rating', 'Alarm Name', 'IP', 'Source', 'OS']]
-            df_csv['Solution'] = None
-            fd_csv = f"./output/{qid}-{df_csv.iloc[0, 2]}.csv"
-            if os.path.exists(fd_csv):
-                print(f"File {fd_csv} already exists. Skipping write operation.")
-                return
-            df_csv.to_csv(fd_csv, index=False)
-
-            """
-            for i, row in df_qid.iterrows():
-                print(f"{row['QID']},{row['Risk Rating']},{row['Alarm Name']},{row['IP']},{row['Source']},{row['OS']}, ")
-            return 
-            """
-
-    def retrieve_host_info(self, dframe: pd.DataFrame, dframe_target: pd.DataFrame) -> pd.DataFrame:
-        for i, row in dframe_target.iterrows():
-            self.gen_csv_by_qid(dframe, row['QID'])
-
+####################################
+### .setup runtime environment
+### .call tools to execte the tasks - handle_vuls()
+####################################
 class VulaOperator:
     def __init__(self):
         self.vulaConfig = {}
@@ -404,7 +427,7 @@ class VulaOperator:
 
                 #print(f"Alarm Name: {row'['Alarm Name']}")
                 pmpt_sol = f""" Security issue: {vul}"""
-                solution = vaa.external_search_solution(pmpt_sol)
+                solution = vaa.analyze_vul(pmpt_sol)
 
                 if self.vulaConfig["writelocal"]: # Write solution to local output
                     fops.write_if_not_exists(self.vulaConfig["filepath"], solution)
@@ -454,7 +477,8 @@ def main():
     #runtime_config("CVE-2025-27363", config.target_priority, config.ai_provider)
     insVulaOperator = VulaOperator()
     
-    insVulaOperator.runtime_config("qid", config.target_priority, config.ai_provider)
+    #insVulaOperator.runtime_config("CVE-2024-2961", config.target_priority, config.ai_provider)
+    insVulaOperator.runtime_config("CVE-2024-53104", config.target_priority, config.ai_provider)
     insVulaOperator.handle_vuls()
 
     ### gen cve list from given csv file
