@@ -48,19 +48,19 @@ class VulaSelector():
         # filter the specified priority column 
         priority_df = dfset[dfset[priority_col] == self.priority]      
         if priority_df.empty:
-            print(f"No vulnerabilities found with priority '{self.priority}'.")
+            logging.info(f"No vulnerabilities found with priority '{self.priority}'.")
             return
 
-        print(f"Found {len(priority_df)} vulnerabilities with priority '{self.priority}'.")
+        logging.debug(f"Found {len(priority_df)} vulnerabilities with priority '{self.priority}'.")
         if v_type == "QID" or v_type == "qid":
             # group by QID for the filtered DataFrame
             qid_df = priority_df.groupby('QID').first().reset_index()
-            print(f"Grouped vulnerabilities by QID, total unique QIDs: {len(qid_df)}")
+            logging.info(f"Grouped vulnerabilities by QID, total unique QIDs: {len(qid_df)}")
             return qid_df
         elif v_type == "CVE" or v_type == "cve":
             # group by QID for the filtered DataFrame
             cve_df = priority_df.groupby('CVE').first().reset_index()
-            print(f"Grouped vulnerabilities by CVE, total unique CVEs: {len(cve_df)}")
+            logging.info(f"Grouped vulnerabilities by CVE, total unique CVEs: {len(cve_df)}")
             return cve_df
     
     def read_csv_file(self, file_path: str) -> pd.DataFrame:
@@ -70,23 +70,23 @@ class VulaSelector():
 
             ### debugging print statements
             rowcount = len(df)
-            print(f"Total rows in CSV: {rowcount}")
-            print(f"Columns in CSV: {df.columns.tolist()}")
+            logging.debug(f"Total rows in CSV: {rowcount}")
+            logging.debug(f"Columns in CSV: {df.columns.tolist()}")
             #print(f"First few rows:\n{df.head()}")
 
             # Check if the DataFrame is empty
             if df.empty:
-                print("CSV file is empty or only contains headers.")
+                logging.warning("CSV file is empty or only contains headers.")
                 return
             
         except FileNotFoundError:
-            print(f"Error: The file '{file_path}' was not found.")
+            logging.error(f"Error: The file '{file_path}' was not found.")
             return
         except pd.errors.EmptyDataError:
-            print(f"Error: The file '{file_path}' is empty and could not be parsed.")
+            logging.error(f"Error: The file '{file_path}' is empty and could not be parsed.")
             return
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            logging.exception(f"An unexpected error occurred: {e}")
             return
 
         return df
@@ -94,16 +94,16 @@ class VulaSelector():
     def gen_csv_by_qid(self, dframe: pd.DataFrame, qid: str):
         df_qid = dframe[dframe['QID'] == qid]
         if df_qid.empty:
-            print(f"No records found for QID: {qid}")
+            logging.warning(f"No records found for QID: {qid}")
             return 
         else:
-            print(f"\nFound {len(df_qid)} records for QID: {qid}")
-            print(f"\nQID,Priority,Alarm Name,IP,Source,OS,Solution")
+            logging.debug(f"\nFound {len(df_qid)} records for QID: {qid}")
+            logging.debug(f"\nQID,Priority,Alarm Name,IP,Source,OS,Solution")
             df_csv = df_qid[['QID', 'Risk Rating', 'Alarm Name', 'IP', 'Source', 'OS']]
             df_csv['Solution'] = None
             fd_csv = f"./output/{qid}-{df_csv.iloc[0, 2]}.csv"
             if os.path.exists(fd_csv):
-                print(f"File {fd_csv} already exists. Skipping write operation.")
+                logging.warning(f"File {fd_csv} already exists. Skipping write operation.")
                 return
             df_csv.to_csv(fd_csv, index=False)
 
@@ -245,7 +245,9 @@ class LlmAdapter:
     def get_solution(self, issue: str) -> str:
         #system_prompt = learningprompt.proj_role_security
         system_prompt = psecurity_checker.p_role_vulnerability
-        user_prompt = f"""For the security problem defeind in triple bracktiks below, focus on Debian 10 and Debain 12, finish the following:
+        
+        ### ToDo:  move the prompt to outter prompt class/dictionary
+        user_prompt = f"""For the security problem defined in triple bracktiks below, focus on Debian 10 and Debain 12, finish the following:
             1. analyze the impact;
             2. describe solution and give security best practices or mitigation steps;
             3. give the remedaition scripts that can be run on both OS;
@@ -287,26 +289,26 @@ class VulaAnalyzeAgent:
     def gen_solution_by_qid(self, dframe: pd.DataFrame, qid: str) -> str:
         df_qid = dframe[dframe['QID'] == qid]
         if df_qid.empty:
-            print(f"No records found for QID: {qid}")
+            logging.warning(f"No records found for QID: {qid}")
             return
         issue = re.sub(r"\[.*?\]", "", df_qid.iloc[0, 2])
-        print(f"\nIssse to be solved: {issue}")
+        logging.debug(f"\nIssse to be solved: {issue}")
         pmpt_sol = f""" Security issue: {issue}"""
         solution = self.external_search_solution(pmpt_sol, self.model)
-        print("Suggestion:", pmpt_sol)
-        print("Solution:", solution)
+        logging.debug("Suggestion:", pmpt_sol)
+        logging.debug("Solution:", solution)
         fops = FOPS()
         fops.write_if_not_exists(f"./output/codeview-{df_qid.iloc[0, 0]}-{issue}.md", solution)
         return
 
     def gen_solution_by_desc(self, desc: str) -> str:
         if not desc:
-            print("No description provided for the vulnerability.")
+            logging.warning("No description provided for the vulnerability.")
             return
         pmpt_sol = f""" Security issue: {desc}"""
         solution = self.external_search_solution(pmpt_sol, self.model)
-        print("Suggestion:", pmpt_sol)
-        print("Solution:", solution)
+        logging.debug("Suggestion:", pmpt_sol)
+        logging.debug("Solution:", solution)
         fops = FOPS()
         fops.write_if_not_exists(f"./output/{desc}.md", solution)
 
@@ -367,7 +369,7 @@ class VulaOperator:
             "parentpage" : target_parent_page,
             "vul" : []
         }
-        print(self.vulaConfig)
+        logging.debug(self.vulaConfig)
         #return
     
         #if VulType != 'CVE' or VulType != 'QID' or VulType != 'qid' or VulType != 'cve' :
@@ -379,12 +381,12 @@ class VulaOperator:
         vulaSelector = VulaSelector(target_prioity, file_path)
         df = vulaSelector.read_csv_file(file_path)
         if df is None or df.empty:
-            print("No data to process.")
+            logging.warning("No data to process.")
             return
         target_df = vulaSelector.select_vul_by_priority(VulType, dfset=df, 
                                             priority_col='Risk Rating')
         if target_df is None or target_df.empty:
-            print("No vulnerabilities found with the specified priority.")
+            logging.debug("No vulnerabilities found with the specified priority.")
             return
         
         for i, row in target_df.iterrows():
@@ -447,12 +449,12 @@ def getDlaList(file_path: str, priority: str) -> list:
     df = vulaSelector.read_csv_file(file_path)
 
     if df is None or df.empty:
-        print("No data to process.")
+        logging.warning("No data to process.")
         return
     target_df = vulaSelector.select_vulnerabilities_by_priority(dfset=df, 
                                         priority_col='Risk Rating')
     if target_df is None or target_df.empty:
-        print("No vulnerabilities found with the specified priority.")
+        logging.warning("No vulnerabilities found with the specified priority.")
         return
     
     ret = []
@@ -472,7 +474,7 @@ def getDlaList(file_path: str, priority: str) -> list:
     return ret
 
 
-def main():
+def dmain():
     #ai_triage_vulnerability("CVE", config.target_priority, config.ai_provider)
     #runtime_config("CVE-2025-27363", config.target_priority, config.ai_provider)
     insVulaOperator = VulaOperator()
@@ -487,7 +489,15 @@ def main():
     if ret:
         print(f"ret: {ret}")
     '''
-                               
+
+def main():
+    from agent.prompts.pmpt_vul import PromptVul
+
+    pmptVul = PromptVul("coatch", "train", "CVEasdfasdf")
+
+    ret = pmptVul.get_prompt("req")
+    #logging.debug(f"{pmptVul.prompt["requriement"]}")
+    logging.debug(f"{ret}")
     
 if __name__ == '__main__':
     main()
