@@ -20,7 +20,8 @@ par_dir = os.path.dirname(cur_dir)
 sys.path.append(par_dir)
 from config.config import config
 from utils.fileops import FOPS
-from agent.prompts import learningprompt 
+#from agent.prompts import learningprompt 
+from agent.prompts.pmpt_vul import PromptVul
 from agent.prompts import psecurity_checker
 import utils.fileops as fops
 import utils.larkApp as larkAPP
@@ -243,35 +244,24 @@ class LlmAdapter:
 
     #def external_search_solution(self, issue: str) -> str:
     def get_solution(self, issue: str) -> str:
-        #system_prompt = learningprompt.proj_role_security
-        system_prompt = psecurity_checker.p_role_vulnerability
-        
-        ### ToDo:  move the prompt to outter prompt class/dictionary
-        user_prompt = f"""For the security problem defined in triple bracktiks below, focus on Debian 10 and Debain 12, finish the following:
-            1. analyze the impact;
-            2. describe solution and give security best practices or mitigation steps;
-            3. give the remedaition scripts that can be run on both OS;
-                3.1 the scripts should be version specfic for the target software, avoid using 'the latest version' or 'the latest patch';
-            4. including depednecy check and verifciation for security vulnerability
-            5. consider list the targer software version that fix the security proplem
-            6. for Debian 10, please consider research in 3rd party solution (Freexian is the paid 3rd party) if can not find the solution in public resources
-        
-            security problem: '''{issue}''' 
-            
-            """
+        # collect system prompt/ goal/ user prompt
+        pmptVul = PromptVul(psecurity_checker.p_role_vulnerability, " ", issue)
+
+        #ret = pmptVul.get_prompt("req")
+        #logging.debug(f"{ret}")
         
         if self.model == "openai":
-            return self.call_openai_solution(system_prompt, user_prompt)
+            return self.call_openai_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "gemini":
-            return self.call_gemini_solution(system_prompt, user_prompt)
+            return self.call_gemini_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "bd_deepseek":
-            return self.call_deepseek_solution(system_prompt, user_prompt)
+            return self.call_deepseek_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "codewise":
-            return self.call_codewise_solution(system_prompt, user_prompt)
+            return self.call_codewise_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "seed16":
-            return self.call_seed16_solution(system_prompt, user_prompt)
+            return self.call_seed16_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "skylark_pro":
-            return self.call_skylark_solution(system_prompt, user_prompt)
+            return self.call_skylark_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         else:
             return f"[Manual Lookup] {issue} => Please consult OWASP guidelines."
 
@@ -473,14 +463,19 @@ def getDlaList(file_path: str, priority: str) -> list:
     
     return ret
 
+def test_pmptVul():
+    from agent.prompts.pmpt_vul import PromptVul
 
-def dmain():
-    #ai_triage_vulnerability("CVE", config.target_priority, config.ai_provider)
-    #runtime_config("CVE-2025-27363", config.target_priority, config.ai_provider)
+    pmptVul = PromptVul("coatch", "train", "CVEasdfasdf")
+
+    ret = pmptVul.get_prompt("req")
+    #logging.debug(f"{pmptVul.prompt["requriement"]}")
+    logging.debug(f"{ret}")
+    
+def main():
     insVulaOperator = VulaOperator()
     
-    #insVulaOperator.runtime_config("CVE-2024-2961", config.target_priority, config.ai_provider)
-    insVulaOperator.runtime_config("CVE-2024-53104", config.target_priority, config.ai_provider)
+    insVulaOperator.runtime_config("CVE-2024-1086", config.target_priority, config.ai_provider)
     insVulaOperator.handle_vuls()
 
     ### gen cve list from given csv file
@@ -490,15 +485,7 @@ def dmain():
         print(f"ret: {ret}")
     '''
 
-def main():
-    from agent.prompts.pmpt_vul import PromptVul
 
-    pmptVul = PromptVul("coatch", "train", "CVEasdfasdf")
-
-    ret = pmptVul.get_prompt("req")
-    #logging.debug(f"{pmptVul.prompt["requriement"]}")
-    logging.debug(f"{ret}")
-    
 if __name__ == '__main__':
     main()
 

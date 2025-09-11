@@ -14,6 +14,7 @@ When considering the soluiton the follwing aspects should be considered:
 - The string below contains CVE or DLA information.
 - The output should be in markdown format. 
 - The solution script should be easily copy to webpage or lark doc, and can be run on both OS.
+- The output should be verified before output to end users
 
 The vulnerability description is as below:
 

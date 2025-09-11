@@ -25,5 +25,10 @@ class PromptVul():
     def get_prompt(self, cat):
         if cat == "req":
             return self.prompt["requirement"]
+        if cat == "role":
+            return self.prompt["role"]
+        if cat == "goal":
+            return self.prompt["goal"]
+
         return f"sth wrong"
 
