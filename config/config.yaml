@@ -3,11 +3,13 @@ project: vula
 data_path: "./data/all.IECS.no.java.mysql.glibc.0701.csv"
 cve_path: "./data/cve_list.csv"
 target_priority: "High"
+local_copy: True
 ai_provider: gpt_model
 #ai_provider: skylark_pro
 #ai_provider: seed_16
 #ai_provider: gemini
 default_key: "AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhRY"
+
 llm:
   gemini_key: AIzaSyDwBgt_OrSMPUR2f-3M3ftg4M9zfMrYhRY
   gemini_model: gemini-2.0-flash

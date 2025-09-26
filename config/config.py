@@ -10,6 +10,7 @@ class Config:
         self.ai_provider = config['ai_provider']
         self.data_path = config['data_path']
         self.cve_path = config['cve_path']
+        self.local_copy = config["local_copy"]
         self.target_priority = config['target_priority']
 
         

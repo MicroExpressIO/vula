@@ -159,7 +159,7 @@ class LlmAdapter:
                 model = config.gpt_model,
                 messages = [
                     {"role": "system", "content": prmpt_system},
-                    {"role": "user", "content": prmpt_user },
+                    {"role": "user", "content": prmpt_user }
                 ],
                 reasoning_effort="medium"
             )
@@ -350,7 +350,7 @@ class VulaOperator:
             "vul" : []
         }'''
     
-    def runtime_config(self, VulType:str, priority: str,  method: str = "gemini"):
+    def runtime_config(self, VulType:str, priority: str,  method: str = "gpt_model"):
         target_prioity = priority
         ### retrieve target records 
         if VulType == "CVE" or VulType == "cve": 
@@ -374,7 +374,7 @@ class VulaOperator:
             if "cve" in VulType.lower():
                 target_parent_page = config.pagetoken_cve_low
 
-        writeLocal = False
+        writeLocal = config.local_copy
 
         model = method
 
@@ -390,9 +390,10 @@ class VulaOperator:
         logging.debug(self.vulaConfig)
         #return
     
-        #if VulType != 'CVE' or VulType != 'QID' or VulType != 'qid' or VulType != 'cve' :
+        # neither QID nor CVE, it's an exact issue - append
         if VulType not in {'CVE', 'QID', 'qid', 'cve'}:
             self.vulaConfig["vul"].append(VulType)
+            self.vulaConfig["filepath"] = (f"./output/{VulType}.md")
             return
         
         ## retrieve vul list
@@ -417,7 +418,7 @@ class VulaOperator:
 
             ## add into vulaConfig
             self.vulaConfig["filepath"]=filePath
-            self.vulaConfig["vul"].append(filePrefix) #as wiki titile
+            self.vulaConfig["vul"].append() #as wiki titile
 
         #print(f"vulaConfig: {self.vulaConfig}")
 
@@ -451,15 +452,16 @@ class VulaOperator:
                 logging.info(f"Investigating: {vul}")
                 ## get solution
 
-                #print(f"Alarm Name: {row'['Alarm Name']}")
-                #pmpt_sol = f"""{vul}"""
+                ###print(f"Alarm Name: {row'['Alarm Name']}")
+                ###pmpt_sol = f"""{vul}"""
+
                 solution = vaa.analyze_vul(vul)
+                #logging.debug(f"self.vulaConfig: {self.vulaConfig}")
 
                 if self.vulaConfig["writelocal"]: # Write solution to local output
                     fops.write_if_not_exists(self.vulaConfig["filepath"], solution)
 
                 ## create wikipage
-                return 
                 larkapp.createWikiPage(vul, solution)
             elif ops == "UPDATE" :
                 #logging.info(f"Updating {vul}")
@@ -474,6 +476,7 @@ class VulaOperator:
             
 
 #class VulaManager:
+### find out CVE information from given QID tilte - if any
 def getDlaList(file_path: str, priority: str) -> list:
     target_prioity = priority
 
@@ -518,8 +521,9 @@ def test_pmptVul():
 def main():
     insVulaOperator = VulaOperator()
     
-    insVulaOperator.runtime_config("CVE-2024-53197", config.target_priority, config.ai_provider)
-    insVulaOperator.handle_vuls("UPDATE")
+    insVulaOperator.runtime_config("CVE-2024-36971", config.target_priority, config.ai_provider)
+    #insVulaOperator.handle_vuls("UPDATE")
+    insVulaOperator.handle_vuls("NEW")
 
     ### gen cve list from given csv file
     '''

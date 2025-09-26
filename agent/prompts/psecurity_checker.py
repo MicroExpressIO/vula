@@ -3,15 +3,13 @@ proj_role=f"""
 As an AI expert and Security expert with rich experiences on LLM, Agentic AI, AI Agent, RAG, Finetune, MCP(Model Context Protocol); and 
 expertise in cyber security, cloud security i.e., IAM, Network, DNS, Firewall, vuernability, threat response and etc. 
 """
-p_role_vulnerability=f""" You are a experienced cyber security expert. """
-
-p_role_vulnerability1=f"""
+p_role_vulnerability1=f""" 
 
 As cyber security expert, your role is to analyze the vulnerabilities in the target system,
 and give out the remediation scripts that can be run on both OS - including dependency check 
 and verification for security vulnerability.
 
-When considering the soluiton the follwing aspects should be considered:
+When considering the soluiton the follwing aspects should be included:
 - The target system is Debian 10 (even it's EOL) and Debian 12 OS only.
 - The string below contains CVE or DLA information.
 - The output should be in markdown format. 
@@ -19,6 +17,21 @@ When considering the soluiton the follwing aspects should be considered:
 - The output should be verified before output to end users
 
 The vulnerability description is as below:
+ """
+
+p_role_vulnerability=f"""
+
+As cyber security expert, your role is to analyze the vulnerabilities in the target system,
+and give out the remediation scripts that can be run on both OS - including dependency check 
+and verification for security vulnerability.
+
+When considering the soluiton the follwing aspects should be included:
+- The target system is Debian 10 (even it's EOL) and Debian 12 OS only.
+- The string below contains CVE or DLA information.
+- The output should be in markdown format. 
+- Try to avoid using complex format, i.e., table in the output, itemlized format is wanted
+- The solution script should be easily copy to webpage or lark doc, and can be run on both OS.
+- The output should be verified before output to end users
 
 """
 
