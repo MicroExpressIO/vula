@@ -38,6 +38,7 @@ class Config:
         ### lark related
         self.bot_id = config["lark"]["VulaBotID"]
         self.bot_secret = config["lark"]["VulaBotSecret"]
+        self.page_kb_recycle = config["lark"]["page_kb_recycle"]
         self.pagetoken_doubao = config["lark"]["pagetoken_doubao"]
         self.page_doubao_high = config["lark"]["page_doubao_high"]
         self.pagetoken_cve_high = config["lark"]["pagetoken_cve_high"]

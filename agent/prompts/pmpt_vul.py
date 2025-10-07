@@ -18,6 +18,7 @@ class PromptVul():
                         5.4 any potential data lose
                         5.5 clearly suggestions if an online patching can be executed
                     6. for Debian 10, please consider research in 3rd party solution (Freexian is the paid 3rd party) if can not find the solution in public resources
+                    7. The output should be in markdown format
                 
                     security problem: ```{vul}```
                     """

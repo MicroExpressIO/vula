@@ -429,6 +429,7 @@ class VulaOperator:
         UPDATE: add new or update if existed
         DELETE: ?
         '''
+        logging.debug("Enter VulaOperator->handle_vuls()")
         vaa = VulaAnalyzeAgent(self.vulaConfig["model"])
         fops = FOPS()
 
@@ -442,19 +443,32 @@ class VulaOperator:
         # "page_list" not None also indicate there's more siblings
         while has_more:
             has_more, page_token, page_list = larkapp.listNodeOfWikiSpace(self.vulaConfig["parentpage"], page_token)
+            #logging.debug(f"page_list - {page_list}")
+            #logging.debug(f"page_token - {page_token}")
             if page_list is None:     # for first round this is necessary
                 break
             sum_pagelist.extend(page_list)
+        logging.debug(f"sum_pagelist: {sum_pagelist}")
+        logging.debug(f"page_token: {page_token}")
+        #return
 
         for vul in self.vulaConfig["vul"]:
-            ### Upload to Lark wiki if not existing
-            if vul not in sum_pagelist:
+            node_token = ""  
+
+            ### if node already existed
+            for item in sum_pagelist:
+                if vul == item.get('title'):
+                    if 'node_token' in item:
+                        node_token = item['node_token']
+                        break
+            logging.debug(f"node_token: {node_token}")
+
+            ### "NEW" - Upload to Lark wiki if not existing            
+            if ops == "NEW" and node_token == "":
                 logging.info(f"Investigating: {vul}")
                 ## get solution
-
-                ###print(f"Alarm Name: {row'['Alarm Name']}")
                 ###pmpt_sol = f"""{vul}"""
-
+                
                 solution = vaa.analyze_vul(vul)
                 #logging.debug(f"self.vulaConfig: {self.vulaConfig}")
 
@@ -463,17 +477,26 @@ class VulaOperator:
 
                 ## create wikipage
                 larkapp.createWikiPage(vul, solution)
-            elif ops == "UPDATE" :
+
+            ### "UPDATE" - delete target and create new
+            elif  ops == "UPDATE" and node_token != "" :
                 #logging.info(f"Updating {vul}")
+                local_solution = fops.read_from_file(self.vulaConfig["filepath"])
+
                 solution = vaa.analyze_vul(vul)
-                ## delete existed wiki
-                return
+                ## delete existed wiki local and remote
+                larkapp.recycleNode(node_token)
+                
+                if self.vulaConfig["writelocal"]: # Write solution to local output
+                    #fops.write_if_not_exists(self.vulaConfig["filepath"], solution)
+                    fops.rewrite_if_exists(self.vulaConfig["filepath"], solution)
+
                 ## create wikipage
                 larkapp.createWikiPage(vul, solution)
-                
             else:
                 logging.warning(f"Wiki existed already, PASS")
             
+        logging.debug("Leave VulaOperator->handle_vuls()")   
 
 #class VulaManager:
 ### find out CVE information from given QID tilte - if any
