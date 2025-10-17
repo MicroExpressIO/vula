@@ -19,6 +19,8 @@ class PromptVul():
                         5.5 clearly suggestions if an online patching can be executed
                     6. for Debian 10, please consider research in 3rd party solution (Freexian is the paid 3rd party) if can not find the solution in public resources
                     7. The output should be in markdown format
+                    8. Try to connect to internet for updated information
+                    9. If find that the knowledge base is obsoleted, mark this out in very begining of the output
                 
                     security problem: ```{vul}```
                     """
