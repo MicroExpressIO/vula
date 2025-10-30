@@ -94,6 +94,7 @@ class LarkAPP:
                 resp: \n{json.dumps(json.loads(response.raw.content), \
                 indent=4, ensure_ascii=False)}"
             )
+            logging.error("getAppAccessToken() failed")
             return
 
         # 处理业务结果
@@ -109,6 +110,7 @@ class LarkAPP:
 
         # retrieve app token
         app_token = self.getAppAccessToken()
+        tenant_token = self.getTenantAccessToken()
         
         # 构造请求对象
         request: DeleteFileRequest = DeleteFileRequest.builder() \
@@ -117,13 +119,14 @@ class LarkAPP:
             .build()
 
         # 发起请求
-        option = lark.RequestOption.builder().user_access_token(app_token).build()
+        option = lark.RequestOption.builder().user_access_token(tenant_token).build()
         response: DeleteFileResponse = self.clientDrive.drive.v1.file.delete(request, option)
 
         # 处理失败返回
         if not response.success():
             lark.logger.error(
                 f"client.drive.v1.file.delete failed, code: {response.code}, msg: {response.msg}, log_id: {response.get_log_id()}, resp: \n{json.dumps(json.loads(response.raw.content), indent=4, ensure_ascii=False)}")
+            logging.error("removeNode() failed")
             return
 
         # 处理业务结果
@@ -257,7 +260,9 @@ class LarkAPP:
 
         # 构造请求对象
         space_id  = self.getListOfWikiSpace()
-        app_token = self.getAppAccessToken()
+        #app_token = self.getAppAccessToken()
+        #tenant_token = self.getTenantAccessToken()
+        
         request: MoveSpaceNodeRequest = MoveSpaceNodeRequest.builder() \
             .space_id(space_id) \
             .node_token(page_id) \
@@ -268,9 +273,9 @@ class LarkAPP:
         .build()
 
         # 发起请求
-        #option = lark.RequestOption.builder().user_access_token("u-hhdcMl585bVHcZyl5CW7Byg45h2555Ehqq204h0yy1dA").build()
-        option = lark.RequestOption.builder().app_access_token(app_token).build()
-        response: MoveSpaceNodeResponse = self.client.wiki.v2.space_node.move(request, option)
+        #option = lark.RequestOption.builder().app_access_token(app_token).build()
+        #response: MoveSpaceNodeResponse = self.client.wiki.v2.space_node.move(request, option)
+        response: MoveSpaceNodeResponse = self.client.wiki.v2.space_node.move(request)
 
         # 处理失败返回
         if not response.success():
@@ -488,7 +493,7 @@ class TestLarkAPP:
         print(f"app_access_token: {x}")
 
     def test_removeNode(self):
-        page_token="Tl2iwsj0citq7HkAFFwcJmhUnLd"
+        page_token="FBVYwhDPkiWNdpk8fB6cE4menHg"
         ret = self.larkapp.removeNode(page_token)
         if ret:
             print ("true")
@@ -509,9 +514,11 @@ if __name__ == "__main__":
     testLarkApp = TestLarkAPP(  config.bot_id, 
                                 config.bot_secret, 
                                 config.pagetoken_cve_high )
+    logging.debug("est")
     #testLarkApp.test_getTenantAccessToken()
     #testLarkApp.test_getAppAccessToken()
     #testLarkApp.test_convertMarkdownHtml()
     #testLarkApp.test_removeNode() # waiting for 1.0.4 to be released
-    testLarkApp.test_recycleNode()
+    #testLarkApp.test_recycleNode()
+    #testLarkApp.test_removeNode()
 #'''

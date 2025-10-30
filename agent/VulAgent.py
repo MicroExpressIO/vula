@@ -2,6 +2,8 @@
 import os
 import sys
 import re
+import time
+import daemon
 
 import pandas as pd
 
@@ -23,7 +25,7 @@ from utils.fileops import FOPS
 #from agent.prompts import learningprompt 
 from agent.prompts.pmpt_vul import PromptVul
 from agent.prompts import psecurity_checker
-import utils.fileops as fops
+#import utils.fileops as fops
 import utils.larkApp as larkAPP
 #import prompts.learningprompt as learningprompt
 
@@ -339,7 +341,10 @@ class VulaAnalyzeAgent:
 class VulaOperator:
     def __init__(self):
         self.vulaConfig = {}
-
+        
+        fops = FOPS()
+        self.dataTimestamp = fops.get_modification_timestamp(config.data_path)
+        
         '''{   
             "priority": priority, 
             "vultype" : VulType,
@@ -543,6 +548,8 @@ def test_pmptVul():
     
 def main():
     insVulaOperator = VulaOperator()
+    logging.debug(f"insVulaOperator.dataTimestamp: {insVulaOperator.dataTimestamp}")
+    return
     
     insVulaOperator.runtime_config("CVE-2024-36971", config.target_priority, config.ai_provider)
     #insVulaOperator.handle_vuls("UPDATE")
@@ -554,9 +561,32 @@ def main():
     if ret:
         print(f"ret: {ret}")
     '''
+def run():
+    with daemon.DaemonContext():
+        daemon_logic()
+
+def daemon_logic():
+    logging.debug("enter daemon_logic()")
+    '''
+    insVulaOps = VulaOperator()
+    fops = FOPS()
+    while True:
+    
+        if fops.is_file_newer(insVulaOps.dataTimestamp, config.data_path): 
+            insVulaOps.runtime_config("CVE", config.target_priority, config.ai_provider)
+            insVulaOps.handle_vuls("NEW")
+        time.sleep(3600*24)
+    '''
+    i=0
+    while True:
+        i+=1
+        print(f"i: {i}")
+        time.sleep(3)
+    logging.debug("exit daemon_logic()")
 
 if __name__ == '__main__':
-    main()
+    #run()
+    daemon_logic()
     
 
     
