@@ -1,7 +1,8 @@
 import yaml
 
 class Config:
-    def __init__(self, config_path="/Users/bytedance/ai/vula/config/config.yaml"):
+    #def __init__(self, config_path="/Users/bytedance/ai/vula/config/config.yaml"):
+    def __init__(self, config_path="/home/huideyin/src/vula/config/config.yaml"):
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
             
@@ -9,6 +10,7 @@ class Config:
         self.ai_provider = config['ai_provider']
         self.data_path = config['data_path']
         self.cve_path = config['cve_path']
+        self.local_copy = config["local_copy"]
         self.target_priority = config['target_priority']
 
         
@@ -30,10 +32,13 @@ class Config:
         self.doubao_key = config["llm"]["doubao_key"]
         self.seed16_model = config["llm"]["seed_16"]
         self.skylark_pro = config["llm"]["skylark_pro"]
+        self.gpt_model = config["llm"]["gpt_model"]
+        self.gpt_key = config["llm"]["gpt_key"]
 
         ### lark related
         self.bot_id = config["lark"]["VulaBotID"]
         self.bot_secret = config["lark"]["VulaBotSecret"]
+        self.page_kb_recycle = config["lark"]["page_kb_recycle"]
         self.pagetoken_doubao = config["lark"]["pagetoken_doubao"]
         self.page_doubao_high = config["lark"]["page_doubao_high"]
         self.pagetoken_cve_high = config["lark"]["pagetoken_cve_high"]

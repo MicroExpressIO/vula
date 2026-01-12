@@ -2,6 +2,8 @@
 import os
 import sys
 import re
+import time
+import daemon
 
 import pandas as pd
 
@@ -23,7 +25,7 @@ from utils.fileops import FOPS
 #from agent.prompts import learningprompt 
 from agent.prompts.pmpt_vul import PromptVul
 from agent.prompts import psecurity_checker
-import utils.fileops as fops
+#import utils.fileops as fops
 import utils.larkApp as larkAPP
 #import prompts.learningprompt as learningprompt
 
@@ -145,6 +147,30 @@ class LlmAdapter:
         except Exception as e:
             return f"[OpenAI Error] {str(e)}"
         
+    def call_gpt_solution(self, prmpt_system: str, prmpt_user: str) -> str:
+        logging.debug("Enter call_gpt_solution()")
+        logging.debug(f"config.doubao_url: {config.doubao_url}")
+        logging.debug(f"config.gpt_key: {config.gpt_key}")
+        logging.debug(f"config.gpt_model: {config.gpt_model}")
+        try:
+            client = OpenAI(
+                base_url=config.doubao_url,
+                api_key=config.gpt_key
+            )
+            response = client.chat.completions.create(
+                model = config.gpt_model,
+                messages = [
+                    {"role": "system", "content": prmpt_system},
+                    {"role": "user", "content": prmpt_user }
+                ],
+                reasoning_effort="medium"
+            )
+            #if hasattr(response.choices[0].message, "reasoning_content"):
+            #    return response.choices[0].message.reasoning_content
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"[GPT Calling exeption]{str(e)}"
+        
     def call_codewise_solution(self, prmpt_system: str, prmpt_user: str) -> str:
         max_tokens = 8192
         temperature = 0.6
@@ -246,12 +272,16 @@ class LlmAdapter:
     def get_solution(self, issue: str) -> str:
         # collect system prompt/ goal/ user prompt
         pmptVul = PromptVul(psecurity_checker.p_role_vulnerability, " ", issue)
-
+        
+        logging.debug(f"model: {self.model} \n pmptVul: {pmptVul.get_prompt("req")}")
+        #return
         #ret = pmptVul.get_prompt("req")
         #logging.debug(f"{ret}")
         
         if self.model == "openai":
             return self.call_openai_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
+        elif self.model == "gpt_model":
+            return self.call_gpt_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "gemini":
             return self.call_gemini_solution(pmptVul.get_prompt("role"), pmptVul.get_prompt("req"))
         elif self.model == "bd_deepseek":
@@ -311,7 +341,10 @@ class VulaAnalyzeAgent:
 class VulaOperator:
     def __init__(self):
         self.vulaConfig = {}
-
+        
+        fops = FOPS()
+        self.dataTimestamp = fops.get_modification_timestamp(config.data_path)
+        
         '''{   
             "priority": priority, 
             "vultype" : VulType,
@@ -322,7 +355,7 @@ class VulaOperator:
             "vul" : []
         }'''
     
-    def runtime_config(self, VulType:str, priority: str,  method: str = "gemini"):
+    def runtime_config(self, VulType:str, priority: str,  method: str = "gpt_model"):
         target_prioity = priority
         ### retrieve target records 
         if VulType == "CVE" or VulType == "cve": 
@@ -346,7 +379,7 @@ class VulaOperator:
             if "cve" in VulType.lower():
                 target_parent_page = config.pagetoken_cve_low
 
-        writeLocal = False
+        writeLocal = config.local_copy
 
         model = method
 
@@ -362,9 +395,10 @@ class VulaOperator:
         logging.debug(self.vulaConfig)
         #return
     
-        #if VulType != 'CVE' or VulType != 'QID' or VulType != 'qid' or VulType != 'cve' :
+        # neither QID nor CVE, it's an exact issue - append
         if VulType not in {'CVE', 'QID', 'qid', 'cve'}:
             self.vulaConfig["vul"].append(VulType)
+            self.vulaConfig["filepath"] = (f"./output/{VulType}.md")
             return
         
         ## retrieve vul list
@@ -389,11 +423,18 @@ class VulaOperator:
 
             ## add into vulaConfig
             self.vulaConfig["filepath"]=filePath
-            self.vulaConfig["vul"].append(filePrefix)
+            self.vulaConfig["vul"].append() #as wiki titile
 
         #print(f"vulaConfig: {self.vulaConfig}")
 
-    def handle_vuls(self):
+    def handle_vuls(self, ops: str):
+        '''
+        ops: 
+        NEW: only add new analysis (by default)
+        UPDATE: add new or update if existed
+        DELETE: ?
+        '''
+        logging.debug("Enter VulaOperator->handle_vuls()")
         vaa = VulaAnalyzeAgent(self.vulaConfig["model"])
         fops = FOPS()
 
@@ -407,30 +448,63 @@ class VulaOperator:
         # "page_list" not None also indicate there's more siblings
         while has_more:
             has_more, page_token, page_list = larkapp.listNodeOfWikiSpace(self.vulaConfig["parentpage"], page_token)
+            #logging.debug(f"page_list - {page_list}")
+            #logging.debug(f"page_token - {page_token}")
             if page_list is None:     # for first round this is necessary
                 break
             sum_pagelist.extend(page_list)
+        logging.debug(f"sum_pagelist: {sum_pagelist}")
+        logging.debug(f"page_token: {page_token}")
+        #return
 
         for vul in self.vulaConfig["vul"]:
-            ### Upload to Lark wiki if not existing
-            if vul not in sum_pagelist:
+            node_token = ""  
+
+            ### if node already existed
+            for item in sum_pagelist:
+                if vul == item.get('title'):
+                    if 'node_token' in item:
+                        node_token = item['node_token']
+                        break
+            logging.debug(f"node_token: {node_token}")
+
+            ### "NEW" - Upload to Lark wiki if not existing            
+            if ops == "NEW" and node_token == "":
                 logging.info(f"Investigating: {vul}")
                 ## get solution
-
-                #print(f"Alarm Name: {row'['Alarm Name']}")
-                pmpt_sol = f""" Security issue: {vul}"""
-                solution = vaa.analyze_vul(pmpt_sol)
+                ###pmpt_sol = f"""{vul}"""
+                
+                solution = vaa.analyze_vul(vul)
+                #logging.debug(f"self.vulaConfig: {self.vulaConfig}")
 
                 if self.vulaConfig["writelocal"]: # Write solution to local output
                     fops.write_if_not_exists(self.vulaConfig["filepath"], solution)
 
                 ## create wikipage
                 larkapp.createWikiPage(vul, solution)
+
+            ### "UPDATE" - delete target and create new
+            elif  ops == "UPDATE" and node_token != "" :
+                #logging.info(f"Updating {vul}")
+                local_solution = fops.read_from_file(self.vulaConfig["filepath"])
+
+                solution = vaa.analyze_vul(vul)
+                ## delete existed wiki local and remote
+                larkapp.recycleNode(node_token)
+                
+                if self.vulaConfig["writelocal"]: # Write solution to local output
+                    #fops.write_if_not_exists(self.vulaConfig["filepath"], solution)
+                    fops.rewrite_if_exists(self.vulaConfig["filepath"], solution)
+
+                ## create wikipage
+                larkapp.createWikiPage(vul, solution)
             else:
                 logging.warning(f"Wiki existed already, PASS")
             
+        logging.debug("Leave VulaOperator->handle_vuls()")   
 
 #class VulaManager:
+### find out CVE information from given QID tilte - if any
 def getDlaList(file_path: str, priority: str) -> list:
     target_prioity = priority
 
@@ -474,9 +548,12 @@ def test_pmptVul():
     
 def main():
     insVulaOperator = VulaOperator()
+    logging.debug(f"insVulaOperator.dataTimestamp: {insVulaOperator.dataTimestamp}")
+    return
     
-    insVulaOperator.runtime_config("CVE-2024-1086", config.target_priority, config.ai_provider)
-    insVulaOperator.handle_vuls()
+    insVulaOperator.runtime_config("CVE-2024-36971", config.target_priority, config.ai_provider)
+    #insVulaOperator.handle_vuls("UPDATE")
+    insVulaOperator.handle_vuls("NEW")
 
     ### gen cve list from given csv file
     '''
@@ -484,9 +561,32 @@ def main():
     if ret:
         print(f"ret: {ret}")
     '''
+def run():
+    with daemon.DaemonContext():
+        daemon_logic()
 
+def daemon_logic():
+    logging.debug("enter daemon_logic()")
+    '''
+    insVulaOps = VulaOperator()
+    fops = FOPS()
+    while True:
+    
+        if fops.is_file_newer(insVulaOps.dataTimestamp, config.data_path): 
+            insVulaOps.runtime_config("CVE", config.target_priority, config.ai_provider)
+            insVulaOps.handle_vuls("NEW")
+        time.sleep(3600*24)
+    '''
+    i=0
+    while True:
+        i+=1
+        print(f"i: {i}")
+        time.sleep(3)
+    logging.debug("exit daemon_logic()")
 
 if __name__ == '__main__':
-    main()
+    #run()
+    daemon_logic()
+    
 
     
